@@ -2,9 +2,9 @@ package webhooksecret
 
 import (
 	"context"
-	syslog "log"
 
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,16 +73,11 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return reconcile.Result{}, nil
+			return r.reconcileDelete(reqLogger, request)
 		}
 		return reconcile.Result{}, err
 	}
-
 	secret, err := r.secretFactory.CreateSecret(instance)
-
-	syslog.Printf("KEVIN!!!!! %#v\n", secret.ObjectMeta)
-
-	// Set WebhookSecret instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, secret, r.scheme); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -90,26 +85,32 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	found := &corev1.Secret{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Secret", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
-		err = r.client.Create(context.TODO(), secret)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		instance.Status.SecretRef = v1alpha1.WebhookSecretRef{
-			Name: secret.Name,
-		}
-		err := r.client.Status().Update(context.TODO(), instance)
-		if err != nil {
-			reqLogger.Error(err, "Failed to update WebhookSecret status")
-			return reconcile.Result{}, err
-		}
-
-		return reconcile.Result{}, nil
-
+		return r.reconcileNewSecret(reqLogger, instance, secret)
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	reqLogger.Info("Skip reconcile: Secret already exists", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
+	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileWebhookSecret) reconcileDelete(log logr.Logger, request reconcile.Request) (reconcile.Result, error) {
+	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileWebhookSecret) reconcileNewSecret(log logr.Logger, w *v1alpha1.WebhookSecret, s *corev1.Secret) (reconcile.Result, error) {
+	log.Info("Creating a new Secret", "Secret.Namespace", s.Namespace, "Secret.Name", s.Name)
+	err := r.client.Create(context.TODO(), s)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	w.Status.SecretRef = v1alpha1.WebhookSecretRef{
+		Name: s.Name,
+	}
+	err = r.client.Status().Update(context.TODO(), w)
+	if err != nil {
+		log.Error(err, "Failed to update WebhookSecret status")
+		return reconcile.Result{}, err
+	}
 	return reconcile.Result{}, nil
 }
