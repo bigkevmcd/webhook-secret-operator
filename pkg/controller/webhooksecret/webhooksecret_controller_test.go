@@ -2,6 +2,7 @@ package webhooksecret
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +22,7 @@ const (
 	testWebhookSecretName      = "test-webhook-secret"
 	testWebhookSecretNamespace = "test-webhook-ns"
 	testSecretName             = "test-secret"
+	testWebhookID              = "1234567"
 )
 
 func makeReconciler(ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.Client, *ReconcileWebhookSecret) {
@@ -35,6 +37,7 @@ func makeReconciler(ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.
 				return "known-secret", nil
 			},
 		},
+		hookClient: newStubHookClient(testWebhookID),
 	}
 }
 
@@ -67,6 +70,9 @@ func TestWebhookSecretController(t *testing.T) {
 	if ws.Status.SecretRef.Name != s.Name {
 		t.Fatalf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
 	}
+	if ws.Status.WebhookID != testWebhookID {
+		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
+	}
 
 }
 
@@ -91,4 +97,25 @@ func makeReconcileRequest() reconcile.Request {
 			Namespace: testWebhookSecretNamespace,
 		},
 	}
+}
+
+func newStubHookClient(s string) *stubHookClient {
+	return &stubHookClient{
+		hookID:  s,
+		created: make(map[string]string),
+	}
+}
+
+type stubHookClient struct {
+	hookID  string
+	created map[string]string
+}
+
+func (s *stubHookClient) Create(ctx context.Context, repo, repoURL, secret string) (string, error) {
+	s.created[key(repo, repoURL)] = secret
+	return s.hookID, nil
+}
+
+func key(s ...string) string {
+	return strings.Join(s, ":")
 }

@@ -10,7 +10,7 @@ import (
 // HookClient implementations provide functionality for creating hooks in a Git
 // Hosting Service.
 type HookClient interface {
-	CreateHook(context.Context, *url.URL, string) error
+	Create(ctx context.Context, repo, hookURL, secret string) (string, error)
 }
 
 // RouteGetter implementations get the URL for OpenShift Routes.

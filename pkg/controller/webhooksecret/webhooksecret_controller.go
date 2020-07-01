@@ -60,6 +60,8 @@ type ReconcileWebhookSecret struct {
 	client        client.Client
 	scheme        *runtime.Scheme
 	secretFactory *secretFactory
+	hookClient    HookClient
+	routeGetter   RouteGetter
 }
 
 // Reconcile reads that state of the cluster for a WebhookSecret object and makes changes based on the state read
@@ -107,6 +109,16 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(log logr.Logger, w *v1alpha1
 	w.Status.SecretRef = v1alpha1.WebhookSecretRef{
 		Name: s.Name,
 	}
+	err = r.client.Status().Update(context.TODO(), w)
+	if err != nil {
+		log.Error(err, "Failed to update WebhookSecret status")
+		return reconcile.Result{}, err
+	}
+	hookID, err := r.hookClient.Create(context.Background(), w.Spec.RepoURL, "https://this.is.the.route", string(s.Data["token"]))
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	w.Status.WebhookID = hookID
 	err = r.client.Status().Update(context.TODO(), w)
 	if err != nil {
 		log.Error(err, "Failed to update WebhookSecret status")
