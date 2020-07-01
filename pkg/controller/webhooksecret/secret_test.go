@@ -15,13 +15,14 @@ var _ reconcile.Reconciler = &ReconcileWebhookSecret{}
 
 func TestCreateSecret(t *testing.T) {
 	ws := &v1alpha1.WebhookSecret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-test-webhook-secret",
+			Namespace: "test-ns",
+		},
 		Spec: v1alpha1.WebhookSecretSpec{
 			SecretRef: v1alpha1.WebhookSecretRef{
-				SecretReference: corev1.SecretReference{
-					Name:      "test-secret",
-					Namespace: "test-secret-ns",
-				},
-				Key: "token",
+				Name: "test-secret",
+				Key:  "token",
 			},
 		},
 	}
@@ -30,7 +31,7 @@ func TestCreateSecret(t *testing.T) {
 		TypeMeta: secretTypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-secret",
-			Namespace: "test-secret-ns",
+			Namespace: "test-ns",
 		},
 		Data: map[string][]byte{
 			"token": []byte("secret"),

@@ -2,6 +2,7 @@ package webhooksecret
 
 import (
 	"context"
+	syslog "log"
 
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,9 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	secret, err := r.secretFactory.CreateSecret(instance)
+
+	syslog.Printf("KEVIN!!!!! %#v\n", secret.ObjectMeta)
+
 	// Set WebhookSecret instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, secret, r.scheme); err != nil {
 		return reconcile.Result{}, err
@@ -91,10 +95,21 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+		instance.Status.SecretRef = v1alpha1.WebhookSecretRef{
+			Name: secret.Name,
+		}
+		err := r.client.Status().Update(context.TODO(), instance)
+		if err != nil {
+			reqLogger.Error(err, "Failed to update WebhookSecret status")
+			return reconcile.Result{}, err
+		}
+
 		return reconcile.Result{}, nil
+
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
+
 	reqLogger.Info("Skip reconcile: Secret already exists", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
 }

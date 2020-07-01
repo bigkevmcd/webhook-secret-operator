@@ -17,11 +17,17 @@ type secretFactory struct {
 	stringGenerator func() (string, error)
 }
 
+// TODO: this should apply managed-by labels.
 func (s *secretFactory) CreateSecret(cr *v1alpha1.WebhookSecret) (*corev1.Secret, error) {
 	token, err := s.stringGenerator()
 	if err != nil {
 		return nil, err
 	}
+	key := "token"
+	if cr.Spec.SecretRef.Key != "" {
+		key = cr.Spec.SecretRef.Key
+	}
+
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -29,10 +35,10 @@ func (s *secretFactory) CreateSecret(cr *v1alpha1.WebhookSecret) (*corev1.Secret
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.Spec.SecretRef.Name,
-			Namespace: cr.Spec.SecretRef.Namespace,
+			Namespace: cr.ObjectMeta.Namespace,
 		},
 		Data: map[string][]byte{
-			cr.Spec.SecretRef.Key: []byte(token),
+			key: []byte(token),
 		},
 	}, nil
 }
