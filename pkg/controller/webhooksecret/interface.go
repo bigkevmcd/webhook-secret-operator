@@ -2,7 +2,6 @@ package webhooksecret
 
 import (
 	"context"
-	"net/url"
 
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -15,5 +14,5 @@ type HookClient interface {
 
 // RouteGetter implementations get the URL for OpenShift Routes.
 type RouteGetter interface {
-	RouteURL(types.NamespacedName) (*url.URL, error)
+	RouteURL(types.NamespacedName) (string, error)
 }

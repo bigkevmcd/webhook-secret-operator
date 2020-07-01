@@ -100,26 +100,32 @@ func (r *ReconcileWebhookSecret) reconcileDelete(log logr.Logger, request reconc
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileWebhookSecret) reconcileNewSecret(log logr.Logger, w *v1alpha1.WebhookSecret, s *corev1.Secret) (reconcile.Result, error) {
+func (r *ReconcileWebhookSecret) reconcileNewSecret(log logr.Logger, ws *v1alpha1.WebhookSecret, s *corev1.Secret) (reconcile.Result, error) {
 	log.Info("Creating a new Secret", "Secret.Namespace", s.Namespace, "Secret.Name", s.Name)
 	err := r.client.Create(context.TODO(), s)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	w.Status.SecretRef = v1alpha1.WebhookSecretRef{
+	ws.Status.SecretRef = v1alpha1.WebhookSecretRef{
 		Name: s.Name,
 	}
-	err = r.client.Status().Update(context.TODO(), w)
+	err = r.client.Status().Update(context.TODO(), ws)
 	if err != nil {
 		log.Error(err, "Failed to update WebhookSecret status")
 		return reconcile.Result{}, err
 	}
-	hookID, err := r.hookClient.Create(context.Background(), w.Spec.RepoURL, "https://this.is.the.route", string(s.Data["token"]))
+	hookURL, err := r.routeGetter.RouteURL(ws.Spec.WebhookURLRef.Route.NamespacedName())
+	if err != nil {
+		log.Error(err, "Failed to get the URL for route: %#v\n", err)
+		return reconcile.Result{}, err
+	}
+
+	hookID, err := r.hookClient.Create(context.Background(), ws.Spec.RepoURL, hookURL, string(s.Data["token"]))
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	w.Status.WebhookID = hookID
-	err = r.client.Status().Update(context.TODO(), w)
+	ws.Status.WebhookID = hookID
+	err = r.client.Status().Update(context.TODO(), ws)
 	if err != nil {
 		log.Error(err, "Failed to update WebhookSecret status")
 		return reconcile.Result{}, err

@@ -23,9 +23,12 @@ const (
 	testWebhookSecretNamespace = "test-webhook-ns"
 	testSecretName             = "test-secret"
 	testWebhookID              = "1234567"
+	testHookEndpoint           = "https://example.com/test"
+	testRepoURL                = "https://github.com/example/example.git"
+	stubSecret                 = "known-secret"
 )
 
-func makeReconciler(ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.Client, *ReconcileWebhookSecret) {
+func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.Client, *ReconcileWebhookSecret) {
 	s := scheme.Scheme
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, ws)
 	cl := fake.NewFakeClient(objs...)
@@ -34,17 +37,18 @@ func makeReconciler(ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.
 		scheme: s,
 		secretFactory: &secretFactory{
 			stringGenerator: func() (string, error) {
-				return "known-secret", nil
+				return stubSecret, nil
 			},
 		},
-		hookClient: newStubHookClient(testWebhookID),
+		hookClient:  newStubHookClient(t, testWebhookID),
+		routeGetter: newStubRouteGetter(testHookEndpoint),
 	}
 }
 
 func TestWebhookSecretController(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 	ws := makeWebhookSecret()
-	cl, r := makeReconciler(ws, ws)
+	cl, r := makeReconciler(t, ws, ws)
 
 	req := makeReconcileRequest()
 	res, err := r.Reconcile(req)
@@ -73,7 +77,7 @@ func TestWebhookSecretController(t *testing.T) {
 	if ws.Status.WebhookID != testWebhookID {
 		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
 	}
-
+	r.hookClient.(*stubHookClient).assertHookCreated(testRepoURL, testHookEndpoint, stubSecret)
 }
 
 func makeWebhookSecret() *v1alpha1.WebhookSecret {
@@ -83,8 +87,15 @@ func makeWebhookSecret() *v1alpha1.WebhookSecret {
 			Namespace: testWebhookSecretNamespace,
 		},
 		Spec: v1alpha1.WebhookSecretSpec{
+			RepoURL: testRepoURL,
 			SecretRef: v1alpha1.WebhookSecretRef{
 				Name: testSecretName,
+			},
+			WebhookURLRef: v1alpha1.HookRouteRef{
+				Route: &v1alpha1.Reference{
+					Name:      "my-test-route",
+					Namespace: "route-test",
+				},
 			},
 		},
 	}
@@ -99,21 +110,50 @@ func makeReconcileRequest() reconcile.Request {
 	}
 }
 
-func newStubHookClient(s string) *stubHookClient {
+func newStubHookClient(t *testing.T, s string) *stubHookClient {
 	return &stubHookClient{
 		hookID:  s,
 		created: make(map[string]string),
+		t:       t,
 	}
 }
 
+var _ HookClient = (*stubHookClient)(nil)
+
 type stubHookClient struct {
+	t       *testing.T
 	hookID  string
 	created map[string]string
 }
 
+// TODO: This should do some "authentication" on the creation.
 func (s *stubHookClient) Create(ctx context.Context, repo, repoURL, secret string) (string, error) {
 	s.created[key(repo, repoURL)] = secret
 	return s.hookID, nil
+}
+
+func (s *stubHookClient) assertHookCreated(repo, hookURL, wantSecret string) {
+	secret := s.created[key(repo, hookURL)]
+	if secret != wantSecret {
+		s.t.Fatalf("hook creation failed: got %#v, want %#v", secret, wantSecret)
+	}
+}
+
+var _ RouteGetter = (*stubRouteGetter)(nil)
+
+func newStubRouteGetter(s string) *stubRouteGetter {
+	return &stubRouteGetter{
+		routeURL: s,
+	}
+}
+
+type stubRouteGetter struct {
+	routeURL string
+}
+
+// TODO: this should check that the namespaced name matches something.
+func (s *stubRouteGetter) RouteURL(types.NamespacedName) (string, error) {
+	return s.routeURL, nil
 }
 
 func key(s ...string) string {

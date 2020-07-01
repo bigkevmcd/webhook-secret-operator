@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // kind: WebhookSecret
@@ -26,7 +27,7 @@ type WebhookSecretSpec struct {
 	RepoURL       string           `json:"repoURL"`
 	AuthSecretRef WebhookSecretRef `json:"authSecretRef"`
 	SecretRef     WebhookSecretRef `json:"secretRef"`
-	//	WebhookURLRef corev1.TypedLocalObjectReference `json:"webhookURLRef"`
+	WebhookURLRef HookRouteRef     `json:"webhookURLRef"`
 
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 }
@@ -42,6 +43,24 @@ type WebhookSecretStatus struct {
 type WebhookSecretRef struct {
 	Name string `json:"name"`
 	Key  string `json:"key,omitempty"`
+}
+
+type HookRouteRef struct {
+	Route *Reference `json:"routeRef,omitempty"`
+}
+
+// Reference is a generic reference with a name/namespace.
+type Reference struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+// NamespacedName returns a NamespacedName for this reference.
+func (r Reference) NamespacedName() types.NamespacedName {
+	return types.NamespacedName{
+		Name:      r.Name,
+		Namespace: r.Namespace,
+	}
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
