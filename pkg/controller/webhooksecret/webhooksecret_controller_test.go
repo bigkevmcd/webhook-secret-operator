@@ -116,7 +116,7 @@ type stubClientFactory struct {
 	client *stubHookClient
 }
 
-func (s stubClientFactory) Create(url, token string) (git.Hooks, error) {
+func (s stubClientFactory) Create(url, token string) (git.HooksClient, error) {
 	return s.client, nil
 }
 
@@ -128,7 +128,7 @@ func newStubHookClient(t *testing.T, s string) *stubHookClient {
 	}
 }
 
-var _ HookClient = (*stubHookClient)(nil)
+var _ git.HooksClient = (*stubHookClient)(nil)
 
 type stubHookClient struct {
 	t       *testing.T

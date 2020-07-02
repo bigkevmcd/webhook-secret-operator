@@ -7,7 +7,7 @@ import (
 	"github.com/jenkins-x/go-scm/scm"
 )
 
-var _ ClientFactory = (*SCMHookClientFactory)(nil)
+var _ ClientFactory = (*SCMHooksClientFactory)(nil)
 
 func TestSCMFactory(t *testing.T) {
 	// TODO non-standard GitHub and GitLab hosts!
@@ -31,7 +31,7 @@ func TestSCMFactory(t *testing.T) {
 			if tt.want == scm.DriverUnknown {
 				return
 			}
-			gc, ok := client.(*SCMHookClient)
+			gc, ok := client.(*SCMHooksClient)
 			if !ok {
 				rt.Errorf("returned client is not an SCMHooksClient: %T", gc)
 			}

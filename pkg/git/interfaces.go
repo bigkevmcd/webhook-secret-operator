@@ -8,7 +8,7 @@ import (
 // to be fetched.
 type ClientFactory interface {
 	// Create creates a new client, using the provided token for authentication.
-	Create(url, token string) (Hooks, error)
+	Create(url, token string) (HooksClient, error)
 }
 
 // DriverIdentifer parses a URL and attempts to determine which go-scm driver to
@@ -17,8 +17,8 @@ type DriverIdentifier interface {
 	Identify(url string) (string, error)
 }
 
-// Hooks is the API for managing hooks.
-type Hooks interface {
+// HooksClient is the API for managing hooks.
+type HooksClient interface {
 	// Create creates a new repository webhook.
 	Create(ctx context.Context, repo, hookURL, secret string) (string, error)
 }

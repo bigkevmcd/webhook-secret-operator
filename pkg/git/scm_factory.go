@@ -6,18 +6,18 @@ import (
 	scmfactory "github.com/jenkins-x/go-scm/scm/factory"
 )
 
-// SCMHookClientFactory is an implementation of the GitClientFactory interface that can
+// SCMHooksClientFactory is an implementation of the GitClientFactory interface that can
 // create clients based on go-scm.
-type SCMHookClientFactory struct {
+type SCMHooksClientFactory struct {
 	drivers DriverIdentifier
 }
 
 // NewClientFactory creates and returns an SCMHookClientFactory.
-func NewClientFactory(d DriverIdentifier) *SCMHookClientFactory {
-	return &SCMHookClientFactory{drivers: d}
+func NewClientFactory(d DriverIdentifier) *SCMHooksClientFactory {
+	return &SCMHooksClientFactory{drivers: d}
 }
 
-func (s *SCMHookClientFactory) Create(url, token string) (Hooks, error) {
+func (s *SCMHooksClientFactory) Create(url, token string) (HooksClient, error) {
 	// TODO: this should DEBUG log out the identification for URLs.
 	driver, err := s.drivers.Identify(url)
 	if err != nil {
