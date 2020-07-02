@@ -6,14 +6,14 @@ import (
 )
 
 // kind: WebhookSecret
-// apiVersion: webhooks/v1alpha1
+// apiVersion: apps.bigkevmcd.com/v1alpha1
 // spec:
 //   repoURL: "https://github.com/testing/testing.git"
 //   authSecretRef:
 //     name: "gitops-github-auth-token"
 //   secretRef:
 //     name: "this-is-the-secret-to-be-created"
-//   webhookURLRef:
+//   webhookURL:
 //     route:
 //       name: "el-gitop-eventlistener-route"
 //   events:
