@@ -16,6 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
+	"github.com/bigkevmcd/webhook-secret-operator/pkg/git"
 )
 
 const (
@@ -25,6 +26,7 @@ const (
 	testWebhookID              = "1234567"
 	testHookEndpoint           = "https://example.com/test"
 	testRepoURL                = "https://github.com/example/example.git"
+	testRepo                   = "example/example"
 	stubSecret                 = "known-secret"
 )
 
@@ -33,15 +35,15 @@ func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Ob
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, ws)
 	cl := fake.NewFakeClient(objs...)
 	return cl, &ReconcileWebhookSecret{
-		client: cl,
-		scheme: s,
+		kubeClient: cl,
+		scheme:     s,
 		secretFactory: &secretFactory{
 			stringGenerator: func() (string, error) {
 				return stubSecret, nil
 			},
 		},
-		hookClient:  newStubHookClient(t, testWebhookID),
-		routeGetter: newStubRouteGetter(testHookEndpoint),
+		routeGetter:      newStubRouteGetter(testHookEndpoint),
+		gitClientFactory: &stubClientFactory{client: newStubHookClient(t, testWebhookID)},
 	}
 }
 
@@ -66,7 +68,7 @@ func TestWebhookSecretController(t *testing.T) {
 	}
 
 	ws = &v1alpha1.WebhookSecret{}
-	err = r.client.Get(context.TODO(), req.NamespacedName, ws)
+	err = r.kubeClient.Get(context.TODO(), req.NamespacedName, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +79,7 @@ func TestWebhookSecretController(t *testing.T) {
 	if ws.Status.WebhookID != testWebhookID {
 		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
 	}
-	r.hookClient.(*stubHookClient).assertHookCreated(testRepoURL, testHookEndpoint, stubSecret)
+	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testRepo, testHookEndpoint, stubSecret)
 }
 
 func makeWebhookSecret() *v1alpha1.WebhookSecret {
@@ -108,6 +110,14 @@ func makeReconcileRequest() reconcile.Request {
 			Namespace: testWebhookSecretNamespace,
 		},
 	}
+}
+
+type stubClientFactory struct {
+	client *stubHookClient
+}
+
+func (s stubClientFactory) Create(url, token string) (git.Hooks, error) {
+	return s.client, nil
 }
 
 func newStubHookClient(t *testing.T, s string) *stubHookClient {
