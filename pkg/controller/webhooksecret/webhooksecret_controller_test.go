@@ -16,6 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
+	"github.com/bigkevmcd/webhook-secret-operator/pkg/git"
 )
 
 const (
@@ -30,14 +31,14 @@ func makeReconciler(ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, ws)
 	cl := fake.NewFakeClient(objs...)
 	return cl, &ReconcileWebhookSecret{
-		client: cl,
-		scheme: s,
+		kubeClient: cl,
+		scheme:     s,
 		secretFactory: &secretFactory{
 			stringGenerator: func() (string, error) {
 				return "known-secret", nil
 			},
 		},
-		hookClient: newStubHookClient(testWebhookID),
+		gitClientFactory: &stubClientFactory{client: newStubHookClient(testWebhookID)},
 	}
 }
 
@@ -62,7 +63,7 @@ func TestWebhookSecretController(t *testing.T) {
 	}
 
 	ws = &v1alpha1.WebhookSecret{}
-	err = r.client.Get(context.TODO(), req.NamespacedName, ws)
+	err = r.kubeClient.Get(context.TODO(), req.NamespacedName, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +98,14 @@ func makeReconcileRequest() reconcile.Request {
 			Namespace: testWebhookSecretNamespace,
 		},
 	}
+}
+
+type stubClientFactory struct {
+	client *stubHookClient
+}
+
+func (s stubClientFactory) Create(url, token string) (git.Hooks, error) {
+	return s.client, nil
 }
 
 func newStubHookClient(s string) *stubHookClient {
