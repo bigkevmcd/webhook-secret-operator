@@ -2,15 +2,12 @@ package secrets
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var _ SecretGetter = (*KubeSecretGetter)(nil)
@@ -18,15 +15,9 @@ var _ SecretGetter = (*KubeSecretGetter)(nil)
 var testID = types.NamespacedName{Name: "test-secret", Namespace: "test-ns"}
 
 func TestSecret(t *testing.T) {
-	g := New(&stubConfigFactory{})
-	g.clientFactory = func(c *rest.Config) (kubernetes.Interface, error) {
-		if c.BearerToken == "auth token" {
-			return fake.NewSimpleClientset(createSecret(testID, "secret-token")), nil
-		}
-		return nil, errors.New("failed")
-	}
+	g := New(fake.NewFakeClient(createSecret(testID, "secret-token")))
 
-	secret, err := g.SecretToken(context.TODO(), "auth token", testID)
+	secret, err := g.SecretToken(context.TODO(), testID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,15 +28,9 @@ func TestSecret(t *testing.T) {
 }
 
 func TestSecretWithMissingSecret(t *testing.T) {
-	g := New(&stubConfigFactory{})
-	g.clientFactory = func(c *rest.Config) (kubernetes.Interface, error) {
-		if c.BearerToken == "auth token" {
-			return fake.NewSimpleClientset(), nil
-		}
-		return nil, errors.New("failed")
-	}
+	g := New(fake.NewFakeClient())
 
-	_, err := g.SecretToken(context.TODO(), "auth token", testID)
+	_, err := g.SecretToken(context.TODO(), testID)
 	if err.Error() != `error getting secret test-ns/test-secret: secrets "test-secret" not found` {
 		t.Fatal(err)
 	}
@@ -66,11 +51,4 @@ func createSecret(id types.NamespacedName, token string) *corev1.Secret {
 			"token": []byte(token),
 		},
 	}
-}
-
-type stubConfigFactory struct {
-}
-
-func (s *stubConfigFactory) Create(token string) (*rest.Config, error) {
-	return &rest.Config{BearerToken: token}, nil
 }

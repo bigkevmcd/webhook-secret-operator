@@ -2,6 +2,7 @@ package webhooksecret
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
 	"github.com/bigkevmcd/webhook-secret-operator/pkg/git"
+	"github.com/bigkevmcd/webhook-secret-operator/pkg/secrets"
 )
 
 const (
@@ -28,6 +30,7 @@ const (
 	testRepoURL                = "https://github.com/example/example.git"
 	testRepo                   = "example/example"
 	stubSecret                 = "known-secret"
+	testAuthSecretName         = "auth-secret"
 )
 
 func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.Client, *ReconcileWebhookSecret) {
@@ -43,14 +46,15 @@ func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Ob
 			},
 		},
 		routeGetter:      newStubRouteGetter(testHookEndpoint),
-		gitClientFactory: &stubClientFactory{client: newStubHookClient(t, testWebhookID)},
+		gitClientFactory: &stubClientFactory{client: newStubHookClient(t, testWebhookID), authToken: "test-auth"},
+		authSecretGetter: secrets.New(cl),
 	}
 }
 
 func TestWebhookSecretController(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 	ws := makeWebhookSecret()
-	cl, r := makeReconciler(t, ws, ws)
+	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
 
 	req := makeReconcileRequest()
 	res, err := r.Reconcile(req)
@@ -93,6 +97,9 @@ func makeWebhookSecret() *v1alpha1.WebhookSecret {
 			SecretRef: v1alpha1.WebhookSecretRef{
 				Name: testSecretName,
 			},
+			AuthSecretRef: v1alpha1.WebhookSecretRef{
+				Name: testAuthSecretName,
+			},
 			WebhookURLRef: v1alpha1.HookRouteRef{
 				Route: &v1alpha1.Reference{
 					Name:      "my-test-route",
@@ -113,10 +120,14 @@ func makeReconcileRequest() reconcile.Request {
 }
 
 type stubClientFactory struct {
-	client *stubHookClient
+	client    *stubHookClient
+	authToken string
 }
 
 func (s stubClientFactory) Create(url, token string) (git.HooksClient, error) {
+	if token != s.authToken {
+		return nil, errors.New("failed to authenticate")
+	}
 	return s.client, nil
 }
 
@@ -136,7 +147,6 @@ type stubHookClient struct {
 	created map[string]string
 }
 
-// TODO: This should do some "authentication" on the creation.
 func (s *stubHookClient) Create(ctx context.Context, repo, repoURL, secret string) (string, error) {
 	s.created[key(repo, repoURL)] = secret
 	return s.hookID, nil
@@ -168,4 +178,20 @@ func (s *stubRouteGetter) RouteURL(types.NamespacedName) (string, error) {
 
 func key(s ...string) string {
 	return strings.Join(s, ":")
+}
+
+func makeTestSecret(n string) *corev1.Secret {
+	return &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      n,
+			Namespace: testWebhookSecretName,
+		},
+		Data: map[string][]byte{
+			"token": []byte("test-secret"),
+		},
+	}
 }
