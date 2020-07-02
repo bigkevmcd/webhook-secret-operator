@@ -31,6 +31,7 @@ const (
 	testRepo                   = "example/example"
 	stubSecret                 = "known-secret"
 	testAuthSecretName         = "auth-secret"
+	testAuthToken              = "test-auth-token"
 )
 
 func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.Client, *ReconcileWebhookSecret) {
@@ -46,17 +47,19 @@ func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Ob
 			},
 		},
 		routeGetter:      newStubRouteGetter(testHookEndpoint),
-		gitClientFactory: &stubClientFactory{client: newStubHookClient(t, testWebhookID), authToken: "test-auth"},
+		gitClientFactory: &stubClientFactory{client: newStubHookClient(t, testWebhookID), authToken: testAuthToken},
 		authSecretGetter: secrets.New(cl),
 	}
 }
 
-func TestWebhookSecretController(t *testing.T) {
+func TestWebhookSecretControllerWithAHookURL(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
-	ws := makeWebhookSecret()
+	ws := makeWebhookSecret(v1alpha1.HookRoute{
+		HookURL: testHookEndpoint,
+	})
 	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
-
 	req := makeReconcileRequest()
+
 	res, err := r.Reconcile(req)
 	if err != nil {
 		t.Fatal(err)
@@ -64,19 +67,16 @@ func TestWebhookSecretController(t *testing.T) {
 	if res.Requeue {
 		t.Fatal("request was requeued")
 	}
-
 	s := &corev1.Secret{}
 	err = cl.Get(context.TODO(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
-
 	ws = &v1alpha1.WebhookSecret{}
 	err = r.kubeClient.Get(context.TODO(), req.NamespacedName, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if ws.Status.SecretRef.Name != s.Name {
 		t.Fatalf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
 	}
@@ -86,7 +86,44 @@ func TestWebhookSecretController(t *testing.T) {
 	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testRepo, testHookEndpoint, stubSecret)
 }
 
-func makeWebhookSecret() *v1alpha1.WebhookSecret {
+func TestWebhookSecretControllerWithARouteRef(t *testing.T) {
+	logf.SetLogger(logf.ZapLogger(true))
+	ws := makeWebhookSecret(v1alpha1.HookRoute{
+		RouteRef: &v1alpha1.Reference{
+			Name:      "my-test-route",
+			Namespace: "route-test",
+		},
+	})
+	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
+	req := makeReconcileRequest()
+
+	res, err := r.Reconcile(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Requeue {
+		t.Fatal("request was requeued")
+	}
+	s := &corev1.Secret{}
+	err = cl.Get(context.TODO(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	if err != nil {
+		t.Fatalf("get secret: %v", err)
+	}
+	ws = &v1alpha1.WebhookSecret{}
+	err = r.kubeClient.Get(context.TODO(), req.NamespacedName, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ws.Status.SecretRef.Name != s.Name {
+		t.Fatalf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
+	}
+	if ws.Status.WebhookID != testWebhookID {
+		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
+	}
+	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testRepo, testHookEndpoint, stubSecret)
+}
+
+func makeWebhookSecret(r v1alpha1.HookRoute) *v1alpha1.WebhookSecret {
 	return &v1alpha1.WebhookSecret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testWebhookSecretName,
@@ -100,12 +137,7 @@ func makeWebhookSecret() *v1alpha1.WebhookSecret {
 			AuthSecretRef: v1alpha1.WebhookSecretRef{
 				Name: testAuthSecretName,
 			},
-			WebhookURLRef: v1alpha1.HookRouteRef{
-				Route: &v1alpha1.Reference{
-					Name:      "my-test-route",
-					Namespace: "route-test",
-				},
-			},
+			WebhookURL: r,
 		},
 	}
 }
@@ -188,10 +220,10 @@ func makeTestSecret(n string) *corev1.Secret {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      n,
-			Namespace: testWebhookSecretName,
+			Namespace: testWebhookSecretNamespace,
 		},
 		Data: map[string][]byte{
-			"token": []byte("test-secret"),
+			"token": []byte(testAuthToken),
 		},
 	}
 }

@@ -27,7 +27,7 @@ type WebhookSecretSpec struct {
 	RepoURL       string           `json:"repoURL"`
 	AuthSecretRef WebhookSecretRef `json:"authSecretRef"`
 	SecretRef     WebhookSecretRef `json:"secretRef"`
-	WebhookURLRef HookRouteRef     `json:"webhookURLRef"`
+	WebhookURL    HookRoute        `json:"webhookURL"`
 
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 }
@@ -45,8 +45,9 @@ type WebhookSecretRef struct {
 	Key  string `json:"key,omitempty"`
 }
 
-type HookRouteRef struct {
-	Route *Reference `json:"routeRef,omitempty"`
+type HookRoute struct {
+	RouteRef *Reference `json:"routeRef,omitempty"`
+	HookURL  string     `json:"hookURL,omitempty"`
 }
 
 // Reference is a generic reference with a name/namespace.

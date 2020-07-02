@@ -150,11 +150,12 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log log
 }
 
 func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1.WebhookSecret, secret string) (string, error) {
-	hookURL, err := r.routeGetter.RouteURL(ws.Spec.WebhookURLRef.Route.NamespacedName())
+	hookURL, err := r.hookURL(ws.Spec.WebhookURL)
 	if err != nil {
 		log.Error(err, "Failed to get the URL for route")
 		return "", err
 	}
+
 	authToken, err := r.authSecretGetter.SecretToken(ctx, types.NamespacedName{Name: ws.Spec.AuthSecretRef.Name, Namespace: ws.ObjectMeta.Namespace})
 	if err != nil {
 		log.Error(err, "Failed to get the authentication token")
@@ -173,6 +174,18 @@ func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1
 		return "", err
 	}
 	return hookID, nil
+}
+
+func (r *ReconcileWebhookSecret) hookURL(u v1alpha1.HookRoute) (string, error) {
+	if u.HookURL != "" {
+		return u.HookURL, nil
+	}
+	hookURL, err := r.routeGetter.RouteURL(u.RouteRef.NamespacedName())
+	if err != nil {
+		log.Error(err, "Failed to get the URL for route")
+		return "", err
+	}
+	return hookURL, nil
 }
 
 // TODO: move this to the git package - possibly to the client factory?
