@@ -33,9 +33,9 @@ func TestCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := New(scmClient)
+	client := New(scmClient, "Codertocat/Hello-World")
 
-	webhookID, err := client.Create(context.TODO(), "Codertocat/Hello-World", "https://example.com/testing", "t0ps3cr3t")
+	webhookID, err := client.Create(context.TODO(), "https://example.com/testing", "t0ps3cr3t")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,6 @@ func TestCreate(t *testing.T) {
 }
 
 func TestCreateWithNotFoundResponse(t *testing.T) {
-	gock.Observe(gock.DumpRequest)
 	defer gock.Off()
 	gock.New("https://api.github.com").
 		Post("/repos/Codertocat/Hello-World/hooks").
@@ -68,9 +67,9 @@ func TestCreateWithNotFoundResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := New(scmClient)
+	client := New(scmClient, "Codertocat/Hello-World")
 
-	_, err = client.Create(context.TODO(), "Codertocat/Hello-World", "https://example.com/testing", "t0ps3cr3t")
+	_, err = client.Create(context.TODO(), "https://example.com/testing", "t0ps3cr3t")
 
 	if !IsNotFound(err) {
 		t.Fatalf("failed with %#v", err)
@@ -82,10 +81,49 @@ func TestCreateUnableToConnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := New(scmClient)
+	client := New(scmClient, "Codertocat/Hello-World")
 
-	_, err = client.Create(context.TODO(), "Codertocat/Hello-World", "pipelines.yaml", "master")
+	_, err = client.Create(context.TODO(), "pipelines.yaml", "master")
 	if !test.MatchError(t, "connection refused", err) {
 		t.Fatal(err)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	defer gock.Off()
+	gock.New("https://api.github.com").
+		Delete("/repos/Codertocat/Hello-World/hooks/1234567").
+		MatchHeader("Authorization", "Bearer authtoken").
+		Reply(http.StatusNoContent)
+
+	scmClient, err := factory.NewClient("github", "", "authtoken")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := New(scmClient, "Codertocat/Hello-World")
+
+	err = client.Delete(context.TODO(), "1234567")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeleteWithNotFoundResponse(t *testing.T) {
+	defer gock.Off()
+	gock.New("https://api.github.com").
+		Delete("/repos/Codertocat/Hello-World/hooks/1234567").
+		MatchHeader("Authorization", "Bearer authtoken").
+		Reply(http.StatusNotFound)
+
+	scmClient, err := factory.NewClient("github", "", "authtoken")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := New(scmClient, "Codertocat/Hello-World")
+
+	err = client.Delete(context.TODO(), "1234567")
+
+	if !IsNotFound(err) {
+		t.Fatalf("failed with %#v", err)
 	}
 }
