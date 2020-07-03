@@ -2,8 +2,7 @@ package webhooksecret
 
 import (
 	"context"
-	"net/url"
-	"strings"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -25,6 +24,8 @@ import (
 )
 
 var log = logf.Log.WithName("controller_webhooksecret")
+
+const webhookFinalizer = "webhooksecrets.finalizer"
 
 // Add creates a new WebhookSecret Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -90,11 +91,32 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	instance := &v1alpha1.WebhookSecret{}
 	err := r.kubeClient.Get(ctx, request.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return r.reconcileDelete(reqLogger, request)
+		if !errors.IsNotFound(err) {
+			return reconcile.Result{}, err
 		}
-		return reconcile.Result{}, err
 	}
+
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !containsString(instance.ObjectMeta.Finalizers, webhookFinalizer) {
+			instance.ObjectMeta.Finalizers = append(instance.ObjectMeta.Finalizers, webhookFinalizer)
+			if err := r.kubeClient.Update(ctx, instance); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	} else {
+		if containsString(instance.ObjectMeta.Finalizers, webhookFinalizer) {
+			if err := r.deleteWebhook(ctx, instance); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			instance.ObjectMeta.Finalizers = removeString(instance.ObjectMeta.Finalizers, webhookFinalizer)
+			if err := r.kubeClient.Update(context.Background(), instance); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
+	}
+
 	secret, err := r.secretFactory.CreateSecret(instance)
 	if err := controllerutil.SetControllerReference(instance, secret, r.scheme); err != nil {
 		return reconcile.Result{}, err
@@ -113,8 +135,29 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileWebhookSecret) reconcileDelete(log logr.Logger, request reconcile.Request) (reconcile.Result, error) {
-	return reconcile.Result{}, nil
+func (r *ReconcileWebhookSecret) authenticatedClient(ctx context.Context, ws *v1alpha1.WebhookSecret) (git.HooksClient, error) {
+	authToken, err := r.authSecretGetter.SecretToken(ctx, types.NamespacedName{Name: ws.Spec.AuthSecretRef.Name, Namespace: ws.ObjectMeta.Namespace})
+	if err != nil {
+		log.Error(err, "Failed to get the authentication token")
+		return nil, fmt.Errorf("could not get authentication token from %s/%s: %s", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace, err)
+	}
+	client, err := r.gitClientFactory.ClientForRepo(ws.Spec.RepoURL, authToken)
+	if err != nil {
+		return nil, fmt.Errorf("could not get client from %s: %s", ws.Spec.RepoURL, err)
+	}
+	return client, nil
+}
+
+func (r *ReconcileWebhookSecret) deleteWebhook(ctx context.Context, ws *v1alpha1.WebhookSecret) error {
+	client, err := r.authenticatedClient(ctx, ws)
+	if err != nil {
+		return err
+	}
+	err = client.Delete(ctx, ws.Status.WebhookID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // TODO: improve the error messages.
@@ -156,20 +199,8 @@ func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1
 		return "", err
 	}
 
-	authToken, err := r.authSecretGetter.SecretToken(ctx, types.NamespacedName{Name: ws.Spec.AuthSecretRef.Name, Namespace: ws.ObjectMeta.Namespace})
-	if err != nil {
-		log.Error(err, "Failed to get the authentication token")
-		return "", err
-	}
-	client, err := r.gitClientFactory.Create(ws.Spec.RepoURL, authToken)
-	if err != nil {
-		return "", err
-	}
-	repo, err := repoFromURL(ws.Spec.RepoURL)
-	if err != nil {
-		return "", err
-	}
-	hookID, err := client.Create(ctx, repo, hookURL, secret)
+	client, err := r.authenticatedClient(ctx, ws)
+	hookID, err := client.Create(ctx, hookURL, secret)
 	if err != nil {
 		return "", err
 	}
@@ -186,13 +217,4 @@ func (r *ReconcileWebhookSecret) hookURL(u v1alpha1.HookRoute) (string, error) {
 		return "", err
 	}
 	return hookURL, nil
-}
-
-// TODO: move this to the git package - possibly to the client factory?
-func repoFromURL(s string) (string, error) {
-	parsed, err := url.Parse(s)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimPrefix(strings.TrimSuffix(parsed.Path, ".git"), "/"), nil
 }
