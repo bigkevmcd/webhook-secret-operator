@@ -100,18 +100,17 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 		if !containsString(instance.ObjectMeta.Finalizers, webhookFinalizer) {
 			instance.ObjectMeta.Finalizers = append(instance.ObjectMeta.Finalizers, webhookFinalizer)
 			if err := r.kubeClient.Update(ctx, instance); err != nil {
-				return reconcile.Result{}, err
+				return reconcile.Result{}, fmt.Errorf("failed to add the finalizer: %s", err)
 			}
 		}
 	} else {
 		if containsString(instance.ObjectMeta.Finalizers, webhookFinalizer) {
 			if err := r.deleteWebhook(ctx, instance); err != nil {
-				return reconcile.Result{}, err
+				return reconcile.Result{}, fmt.Errorf("failed to delete the webhook: %s", err)
 			}
-
 			instance.ObjectMeta.Finalizers = removeString(instance.ObjectMeta.Finalizers, webhookFinalizer)
 			if err := r.kubeClient.Update(context.Background(), instance); err != nil {
-				return reconcile.Result{}, err
+				return reconcile.Result{}, fmt.Errorf("failed to update the finalizers after deleting the webhook: %s", err)
 			}
 		}
 		return reconcile.Result{}, nil
@@ -138,7 +137,7 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 func (r *ReconcileWebhookSecret) authenticatedClient(ctx context.Context, ws *v1alpha1.WebhookSecret) (git.HooksClient, error) {
 	authToken, err := r.authSecretGetter.SecretToken(ctx, types.NamespacedName{Name: ws.Spec.AuthSecretRef.Name, Namespace: ws.ObjectMeta.Namespace})
 	if err != nil {
-		log.Error(err, "Failed to get the authentication token")
+		log.Error(err, "failed to get the authentication token")
 		return nil, fmt.Errorf("could not get authentication token from %s/%s: %s", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace, err)
 	}
 	client, err := r.gitClientFactory.ClientForRepo(ws.Spec.RepoURL, authToken)
@@ -166,15 +165,15 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log log
 	log.Info("Creating a new Secret", "Secret.Namespace", s.Namespace, "Secret.Name", s.Name)
 	err := r.kubeClient.Create(ctx, s)
 	if err != nil {
-		return reconcile.Result{}, err
+		return reconcile.Result{}, fmt.Errorf("failed to create a secret: %s", err)
 	}
 	ws.Status.SecretRef = v1alpha1.WebhookSecretRef{
 		Name: s.Name,
 	}
 	err = r.kubeClient.Status().Update(ctx, ws)
 	if err != nil {
-		log.Error(err, "Failed to update WebhookSecret status")
-		return reconcile.Result{}, err
+		log.Error(err, "failed to update WebhookSecret status")
+		return reconcile.Result{}, fmt.Errorf("failed to update status after creating a secret: %s", err)
 	}
 
 	// TODO: work out how to get the secret string without having to grab it from the
@@ -187,7 +186,7 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log log
 	err = r.kubeClient.Status().Update(ctx, ws)
 	if err != nil {
 		log.Error(err, "Failed to update WebhookSecret status")
-		return reconcile.Result{}, err
+		return reconcile.Result{}, fmt.Errorf("failed to update status after creating a Webhook: %s", err)
 	}
 	return reconcile.Result{}, nil
 }
