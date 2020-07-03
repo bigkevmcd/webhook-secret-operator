@@ -19,7 +19,7 @@ type MockSecret struct {
 	secrets map[string]string
 }
 
-// Secret implements the SecretGetter interface.
+// SecretToken implements the SecretGetter interface.
 func (k MockSecret) SecretToken(ctx context.Context, secretID types.NamespacedName) (string, error) {
 	token, ok := k.secrets[key(secretID)]
 	if !ok {

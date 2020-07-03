@@ -14,7 +14,7 @@ var _ SecretGetter = (*KubeSecretGetter)(nil)
 
 var testID = types.NamespacedName{Name: "test-secret", Namespace: "test-ns"}
 
-func TestSecret(t *testing.T) {
+func TestSecretToken(t *testing.T) {
 	g := New(fake.NewFakeClient(createSecret(testID, "secret-token")))
 
 	secret, err := g.SecretToken(context.TODO(), testID)
@@ -27,7 +27,7 @@ func TestSecret(t *testing.T) {
 	}
 }
 
-func TestSecretWithMissingSecret(t *testing.T) {
+func TestSecretTokenWithMissingSecret(t *testing.T) {
 	g := New(fake.NewFakeClient())
 
 	_, err := g.SecretToken(context.TODO(), testID)
