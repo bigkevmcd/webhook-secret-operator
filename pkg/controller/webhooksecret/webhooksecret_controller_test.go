@@ -3,6 +3,7 @@ package webhooksecret
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -54,22 +55,28 @@ func TestWebhookSecretControllerWithAHookURL(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.TODO(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
 	ws = &v1alpha1.WebhookSecret{}
-	err = r.kubeClient.Get(context.TODO(), req.NamespacedName, ws)
+	err = r.kubeClient.Get(context.Background(), req.NamespacedName, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !reflect.DeepEqual(ws.ObjectMeta.Finalizers, []string{webhookFinalizer}) {
+		t.Errorf("finalizer not in list of finalizers, got %#v, want %#v",
+			ws.ObjectMeta.Finalizers, []string{webhookFinalizer})
+	}
 	if ws.Status.SecretRef.Name != s.Name {
-		t.Fatalf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
+		t.Errorf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
 	}
 	if ws.Status.WebhookID != testWebhookID {
-		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
+		t.Errorf("status does not have the correct WebhookID, got %#v, want %#v",
+			ws.Status.WebhookID, testWebhookID)
 	}
-	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testHookEndpoint, stubSecret)
+	r.gitClientFactory.(*stubClientFactory).client.
+		assertHookCreated(testHookEndpoint, stubSecret)
 }
 
 // Reconciling a simple WebhookSecret should create a Secret, and create a
@@ -94,12 +101,12 @@ func TestWebhookSecretControllerWithARouteRef(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.TODO(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
 	ws = &v1alpha1.WebhookSecret{}
-	err = r.kubeClient.Get(context.TODO(), req.NamespacedName, ws)
+	err = r.kubeClient.Get(context.Background(), req.NamespacedName, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +138,7 @@ func TestWebhookSecretDeletedWebhookSecretDeletedSecret(t *testing.T) {
 
 // When a WebhookSecret is deleted, it should cleanup the webhook in the
 // git host.
+// TODO: This should probably go through a reconcile, create, delete cycle.
 func TestWebhookSecretControllerDeletedWebhookSecret(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 	ws := makeWebhookSecret(v1alpha1.HookRoute{
@@ -152,7 +160,7 @@ func TestWebhookSecretControllerDeletedWebhookSecret(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.TODO(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("secret still exists %v", err)
 	}

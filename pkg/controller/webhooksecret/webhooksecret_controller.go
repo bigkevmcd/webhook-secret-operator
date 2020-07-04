@@ -94,6 +94,7 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 		if !errors.IsNotFound(err) {
 			return reconcile.Result{}, err
 		}
+		return reconcile.Result{}, nil
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
