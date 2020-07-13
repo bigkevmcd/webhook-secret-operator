@@ -127,7 +127,39 @@ func TestWebhookSecretControllerWithARouteRefAndRouteMissing(t *testing.T) {
 // When reconciling a WebhookSecret, if we have the secret already, but no
 // Status.WebhookID, then we should create the webhook.
 func TestWebhookSecretControllerSecretButNoHook(t *testing.T) {
-	t.Skip()
+	logf.SetLogger(logf.ZapLogger(true))
+	ws := makeWebhookSecret(v1alpha1.HookRoute{
+		HookURL: testHookEndpoint,
+	})
+	existingSecret := makeTestSecret(ws.Spec.SecretRef.Name)
+	ws.Status.SecretRef = ws.Spec.SecretRef
+
+	_, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName), existingSecret)
+	req := makeReconcileRequest()
+
+	res, err := r.Reconcile(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Requeue {
+		t.Fatal("request was requeued")
+	}
+	ws = &v1alpha1.WebhookSecret{}
+	err = r.kubeClient.Get(context.Background(), req.NamespacedName, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(ws.ObjectMeta.Finalizers, []string{webhookFinalizer}) {
+		t.Errorf("finalizer not in list of finalizers, got %#v, want %#v",
+			ws.ObjectMeta.Finalizers, []string{webhookFinalizer})
+	}
+	if ws.Status.WebhookID != testWebhookID {
+		t.Errorf("status does not have the correct WebhookID, got %#v, want %#v",
+			ws.Status.WebhookID, testWebhookID)
+	}
+	r.gitClientFactory.(*stubClientFactory).client.
+		assertHookCreated(testHookEndpoint, stubSecret)
+
 }
 
 // We're watching the Secret, when it's deleted, we should recreate the Secret,
