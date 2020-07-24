@@ -216,7 +216,9 @@ func makeWebhookSecret(r v1alpha1.HookRoute) *v1alpha1.WebhookSecret {
 			Namespace: testWebhookSecretNamespace,
 		},
 		Spec: v1alpha1.WebhookSecretSpec{
-			RepoURL: testRepoURL,
+			Repo: v1alpha1.Repo{
+				URL: testRepoURL,
+			},
 			SecretRef: v1alpha1.WebhookSecretRef{
 				Name: testSecretName,
 			},
@@ -244,7 +246,7 @@ type stubClientFactory struct {
 }
 
 // TODO: ensure that this can fail to find a client.
-func (s stubClientFactory) ClientForRepo(url, token string) (git.HooksClient, error) {
+func (s stubClientFactory) ClientForRepo(r v1alpha1.Repo, token string) (git.HooksClient, error) {
 	if token != s.authToken {
 		return nil, errors.New("failed to authenticate")
 	}

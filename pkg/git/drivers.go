@@ -11,15 +11,15 @@ type URLDriverIdentifier struct {
 	hosts map[string]string
 }
 
-func (u *URLDriverIdentifier) Identify(gitURL string) (string, error) {
-	parsed, err := url.Parse(gitURL)
+func (u *URLDriverIdentifier) Identify(repoURL string) (string, error) {
+	parsed, err := url.Parse(repoURL)
 	if err != nil {
 	}
 	d, ok := u.hosts[parsed.Host]
 	if ok {
 		return d, nil
 	}
-	return "", unknownDriverError{url: gitURL}
+	return "", unknownDriverError{url: repoURL}
 }
 
 // NewDriverIdentifier creates and returns a new URLDriverIdentifier.
@@ -38,4 +38,11 @@ type unknownDriverError struct {
 
 func (e unknownDriverError) Error() string {
 	return fmt.Sprintf("unable to identify driver from URL: %s", e.url)
+}
+
+// IsUnknownDriver returns true if the provided error means that we couldn't
+// identify the driver from a Repo URL.
+func IsUnknownDriver(err error) bool {
+	_, ok := err.(unknownDriverError)
+	return ok
 }

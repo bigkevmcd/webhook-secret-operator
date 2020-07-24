@@ -22,9 +22,9 @@ import (
 
 // WebhookSecretSpec defines the desired state of WebhookSecret
 //
-// This is used to authenticate requests to the API for RepoURL.
+// This is used to authenticate requests to the API for Repo.
 type WebhookSecretSpec struct {
-	RepoURL       string           `json:"repoURL"`
+	Repo          Repo             `json:"repo"`
 	AuthSecretRef WebhookSecretRef `json:"authSecretRef"`
 	SecretRef     WebhookSecretRef `json:"secretRef"`
 	WebhookURL    HookRoute        `json:"webhookURL"`
@@ -34,7 +34,12 @@ type WebhookSecretSpec struct {
 type WebhookSecretStatus struct {
 	WebhookID string           `json:"webhookID,omitempty"`
 	SecretRef WebhookSecretRef `json:"secretRef,omitempty"`
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+}
+
+type Repo struct {
+	URL      string `json:"url"`
+	Driver   string `json:"driver,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 // WebhookSecretRef is the secret to be created.
@@ -43,6 +48,10 @@ type WebhookSecretRef struct {
 	Key  string `json:"key,omitempty"`
 }
 
+// HookRoute is the way to get the URL for the Webhook.
+//
+// HookURL is a static URL.
+// RouteRef uses an OpenShift route to calculate the URL.
 type HookRoute struct {
 	RouteRef *RouteReference `json:"routeRef,omitempty"`
 	HookURL  string          `json:"hookURL,omitempty"`

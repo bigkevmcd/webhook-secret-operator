@@ -143,9 +143,9 @@ func (r *ReconcileWebhookSecret) authenticatedClient(ctx context.Context, ws *v1
 		log.Error(err, "failed to get the authentication token")
 		return nil, fmt.Errorf("could not get authentication token from %s/%s: %s", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace, err)
 	}
-	client, err := r.gitClientFactory.ClientForRepo(ws.Spec.RepoURL, authToken)
+	client, err := r.gitClientFactory.ClientForRepo(ws.Spec.Repo, authToken)
 	if err != nil {
-		return nil, fmt.Errorf("could not get client from %s: %s", ws.Spec.RepoURL, err)
+		return nil, fmt.Errorf("could not get client from %s: %s", ws.Spec.Repo.URL, err)
 	}
 	return client, nil
 }

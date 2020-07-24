@@ -2,13 +2,15 @@ package git
 
 import (
 	"context"
+
+	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
 )
 
 // ClientFactory is an interface for creating SCM clients based on the URL
 // to be fetched.
 type ClientFactory interface {
 	// ClientForRepo creates a new client, using the provided token for authentication.
-	ClientForRepo(url, token string) (HooksClient, error)
+	ClientForRepo(repo v1alpha1.Repo, token string) (HooksClient, error)
 }
 
 // DriverIdentifer parses a URL and attempts to determine which go-scm driver to
