@@ -78,3 +78,9 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - route.openshift.io/v1
+  resources:
+  - Route
+  verbs:
+  - get
