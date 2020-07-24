@@ -3,6 +3,7 @@ package webhooksecret
 import (
 	"context"
 	"fmt"
+	syslog "log"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -216,5 +217,9 @@ func (r *ReconcileWebhookSecret) hookURL(u v1alpha1.HookRoute) (string, error) {
 		log.Error(err, "Failed to get the URL for route")
 		return "", err
 	}
+	if u.RouteRef.Path != "" {
+		hookURL = hookURL + u.RouteRef.Path
+	}
+	syslog.Printf("KEVIN!!!! returning %#v\n", hookURL)
 	return hookURL, nil
 }

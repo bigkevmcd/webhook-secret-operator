@@ -28,8 +28,6 @@ type WebhookSecretSpec struct {
 	AuthSecretRef WebhookSecretRef `json:"authSecretRef"`
 	SecretRef     WebhookSecretRef `json:"secretRef"`
 	WebhookURL    HookRoute        `json:"webhookURL"`
-
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 }
 
 // WebhookSecretStatus defines the observed state of WebhookSecret
@@ -46,18 +44,20 @@ type WebhookSecretRef struct {
 }
 
 type HookRoute struct {
-	RouteRef *Reference `json:"routeRef,omitempty"`
-	HookURL  string     `json:"hookURL,omitempty"`
+	RouteRef *RouteReference `json:"routeRef,omitempty"`
+	HookURL  string          `json:"hookURL,omitempty"`
 }
 
-// Reference is a generic reference with a name/namespace.
-type Reference struct {
+// RouteReference is a generic reference with a name/namespace, and the addition
+// of a Path to add a custom endpoint.
+type RouteReference struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+	Path      string `json:"path,omitempty"`
 }
 
 // NamespacedName returns a NamespacedName for this reference.
-func (r Reference) NamespacedName() types.NamespacedName {
+func (r RouteReference) NamespacedName() types.NamespacedName {
 	return types.NamespacedName{
 		Name:      r.Name,
 		Namespace: r.Namespace,

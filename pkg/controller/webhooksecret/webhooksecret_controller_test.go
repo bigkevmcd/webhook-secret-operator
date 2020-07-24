@@ -82,10 +82,10 @@ func TestWebhookSecretControllerWithAHookURL(t *testing.T) {
 // Reconciling a simple WebhookSecret should create a Secret, and create a
 // webhook in the repository pointing to the URL of the Route referenced in the
 // WebhookSecret.
-func TestWebhookSecretControllerWithARouteRef(t *testing.T) {
+func TestWebhookSecretControllerWithRouteRef(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 	ws := makeWebhookSecret(v1alpha1.HookRoute{
-		RouteRef: &v1alpha1.Reference{
+		RouteRef: &v1alpha1.RouteReference{
 			Name:      "my-test-route",
 			Namespace: "route-test",
 		},
@@ -119,22 +119,18 @@ func TestWebhookSecretControllerWithARouteRef(t *testing.T) {
 	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testHookEndpoint, stubSecret)
 }
 
-// If the Route referenced does not exist, no hook should be created.
-// The WebhookSecret should reflect the error.
-func TestWebhookSecretControllerWithARouteRefAndRouteMissing(t *testing.T) {
-}
-
-// When reconciling a WebhookSecret, if we have the secret already, but no
-// Status.WebhookID, then we should create the webhook.
-func TestWebhookSecretControllerSecretButNoHook(t *testing.T) {
+// If using a Route, and there's a configured path on the RouteRef, then the
+// path should be appended to the endpoint.
+func TestWebhookSecretControllerWithRouteRefAndPath(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 	ws := makeWebhookSecret(v1alpha1.HookRoute{
-		HookURL: testHookEndpoint,
+		RouteRef: &v1alpha1.RouteReference{
+			Name:      "my-test-route",
+			Namespace: "route-test",
+			Path:      "/api/webhook",
+		},
 	})
-	existingSecret := makeTestSecret(ws.Spec.SecretRef.Name)
-	ws.Status.SecretRef = ws.Spec.SecretRef
-
-	_, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName), existingSecret)
+	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
 	req := makeReconcileRequest()
 
 	res, err := r.Reconcile(req)
@@ -144,22 +140,35 @@ func TestWebhookSecretControllerSecretButNoHook(t *testing.T) {
 	if res.Requeue {
 		t.Fatal("request was requeued")
 	}
+	s := &corev1.Secret{}
+	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	if err != nil {
+		t.Fatalf("get secret: %v", err)
+	}
 	ws = &v1alpha1.WebhookSecret{}
 	err = r.kubeClient.Get(context.Background(), req.NamespacedName, ws)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(ws.ObjectMeta.Finalizers, []string{webhookFinalizer}) {
-		t.Errorf("finalizer not in list of finalizers, got %#v, want %#v",
-			ws.ObjectMeta.Finalizers, []string{webhookFinalizer})
+	if ws.Status.SecretRef.Name != s.Name {
+		t.Fatalf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
 	}
 	if ws.Status.WebhookID != testWebhookID {
-		t.Errorf("status does not have the correct WebhookID, got %#v, want %#v",
-			ws.Status.WebhookID, testWebhookID)
+		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
 	}
-	r.gitClientFactory.(*stubClientFactory).client.
-		assertHookCreated(testHookEndpoint, stubSecret)
+	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testHookEndpoint+"/api/webhook", stubSecret)
+}
 
+// If the Route referenced does not exist, no hook should be created.
+// The WebhookSecret should reflect the error.
+func TestWebhookSecretControllerWithRouteRefAndRouteMissing(t *testing.T) {
+	t.Skip()
+}
+
+// When reconciling a WebhookSecret, if we have the secret already, but no
+// Status.WebhookID, then we should create the webhook.
+func TestWebhookSecretControllerSecretButNoHook(t *testing.T) {
+	t.Skip()
 }
 
 // We're watching the Secret, when it's deleted, we should recreate the Secret,
