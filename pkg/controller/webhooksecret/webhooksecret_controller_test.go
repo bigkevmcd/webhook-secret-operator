@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bigkevmcd/webhook-secret-operator/pkg/routes"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -295,7 +296,7 @@ func (s *stubHookClient) assertHookDeleted(wantHookID string) {
 	}
 }
 
-var _ RouteGetter = (*stubRouteGetter)(nil)
+var _ routes.RouteGetter = (*stubRouteGetter)(nil)
 
 func newStubRouteGetter(s string) *stubRouteGetter {
 	return &stubRouteGetter{
@@ -308,7 +309,7 @@ type stubRouteGetter struct {
 }
 
 // TODO: this should check that the namespaced name matches something.
-func (s *stubRouteGetter) RouteURL(types.NamespacedName) (string, error) {
+func (s *stubRouteGetter) RouteURL(context.Context, types.NamespacedName) (string, error) {
 	return s.routeURL, nil
 }
 

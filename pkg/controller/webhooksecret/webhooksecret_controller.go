@@ -3,7 +3,6 @@ package webhooksecret
 import (
 	"context"
 	"fmt"
-	syslog "log"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +20,7 @@ import (
 
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
 	"github.com/bigkevmcd/webhook-secret-operator/pkg/git"
+	"github.com/bigkevmcd/webhook-secret-operator/pkg/routes"
 	"github.com/bigkevmcd/webhook-secret-operator/pkg/secrets"
 )
 
@@ -43,6 +43,7 @@ func newReconciler(mgr manager.Manager) reconcile.Reconciler {
 		secretFactory:    &secretFactory{stringGenerator: generateSecureString},
 		gitClientFactory: cf,
 		authSecretGetter: secrets.New(mgr.GetClient()),
+		routeGetter:      routes.New(mgr.GetClient()),
 	}
 }
 
@@ -77,7 +78,7 @@ type ReconcileWebhookSecret struct {
 	gitClientFactory git.ClientFactory
 
 	authSecretGetter secrets.SecretGetter
-	routeGetter      RouteGetter
+	routeGetter      routes.RouteGetter
 }
 
 // Reconcile reads that state of the cluster for a WebhookSecret object and makes changes based on the state read
@@ -194,7 +195,7 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log log
 }
 
 func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1.WebhookSecret, secret string) (string, error) {
-	hookURL, err := r.hookURL(ws.Spec.WebhookURL)
+	hookURL, err := r.hookURL(ctx, ws.Spec.WebhookURL)
 	if err != nil {
 		log.Error(err, "Failed to get the URL for route")
 		return "", err
@@ -208,11 +209,11 @@ func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1
 	return hookID, nil
 }
 
-func (r *ReconcileWebhookSecret) hookURL(u v1alpha1.HookRoute) (string, error) {
+func (r *ReconcileWebhookSecret) hookURL(ctx context.Context, u v1alpha1.HookRoute) (string, error) {
 	if u.HookURL != "" {
 		return u.HookURL, nil
 	}
-	hookURL, err := r.routeGetter.RouteURL(u.RouteRef.NamespacedName())
+	hookURL, err := r.routeGetter.RouteURL(ctx, u.RouteRef.NamespacedName())
 	if err != nil {
 		log.Error(err, "Failed to get the URL for route")
 		return "", err
@@ -220,6 +221,5 @@ func (r *ReconcileWebhookSecret) hookURL(u v1alpha1.HookRoute) (string, error) {
 	if u.RouteRef.Path != "" {
 		hookURL = hookURL + u.RouteRef.Path
 	}
-	syslog.Printf("KEVIN!!!! returning %#v\n", hookURL)
 	return hookURL, nil
 }
