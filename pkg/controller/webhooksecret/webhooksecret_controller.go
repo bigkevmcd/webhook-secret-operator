@@ -120,6 +120,9 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	secret, err := r.secretFactory.CreateSecret(instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	if err := controllerutil.SetControllerReference(instance, secret, r.scheme); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -156,7 +159,7 @@ func (r *ReconcileWebhookSecret) deleteWebhook(ctx context.Context, ws *v1alpha1
 		return err
 	}
 	err = client.Delete(ctx, ws.Status.WebhookID)
-	if err != nil {
+	if err != nil && !git.IsNotFound(err) {
 		return err
 	}
 	return nil
@@ -202,6 +205,9 @@ func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1
 	}
 
 	client, err := r.authenticatedClient(ctx, ws)
+	if err != nil {
+		return "", err
+	}
 	hookID, err := client.Create(ctx, hookURL, secret)
 	if err != nil {
 		return "", err
@@ -213,13 +219,10 @@ func (r *ReconcileWebhookSecret) hookURL(ctx context.Context, u v1alpha1.HookRou
 	if u.HookURL != "" {
 		return u.HookURL, nil
 	}
-	hookURL, err := r.routeGetter.RouteURL(ctx, u.RouteRef.NamespacedName())
+	hookURL, err := r.routeGetter.RouteURL(ctx, u.RouteRef.NamespacedName(), u.RouteRef.Path)
 	if err != nil {
 		log.Error(err, "Failed to get the URL for route")
 		return "", err
-	}
-	if u.RouteRef.Path != "" {
-		hookURL = hookURL + u.RouteRef.Path
 	}
 	return hookURL, nil
 }

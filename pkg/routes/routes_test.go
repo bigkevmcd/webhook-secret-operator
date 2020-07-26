@@ -20,20 +20,33 @@ var testID = types.NamespacedName{Name: "test-route", Namespace: "test-ns"}
 func TestRouteURL(t *testing.T) {
 	g := makeGetter(test.MakeRoute(testID))
 
-	hookURL, err := g.RouteURL(context.TODO(), testID)
+	hookURL, err := g.RouteURL(context.TODO(), testID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hookURL != "https://test.example.com" {
+	if hookURL != "https://test.example.com/" {
 		t.Fatalf("got %s, want 'https://test.example.com/", hookURL)
+	}
+}
+
+func TestRouteURLWithPath(t *testing.T) {
+	g := makeGetter(test.MakeRoute(testID))
+
+	hookURL, err := g.RouteURL(context.TODO(), testID, "/test/api")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if hookURL != "https://test.example.com/test/api" {
+		t.Fatalf("got %s, want 'https://test.example.com/test/api", hookURL)
 	}
 }
 
 func TestRouteURLWithMissingRoute(t *testing.T) {
 	g := makeGetter()
 
-	_, err := g.RouteURL(context.TODO(), testID)
+	_, err := g.RouteURL(context.TODO(), testID, "")
 
 	if err.Error() != `error getting route test-ns/test-route: routes.route.openshift.io "test-route" not found` {
 		t.Fatal(err)

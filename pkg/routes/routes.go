@@ -24,7 +24,7 @@ func New(c client.Client) *KubeRouteGetter {
 
 // RouteURL looks for a namespaced Route, and returns the URL from
 // it, or an error if not found.
-func (k KubeRouteGetter) RouteURL(ctx context.Context, id types.NamespacedName) (string, error) {
+func (k KubeRouteGetter) RouteURL(ctx context.Context, id types.NamespacedName, path string) (string, error) {
 	loaded := &routev1.Route{}
 	err := k.kubeClient.Get(context.TODO(), id, loaded)
 	if err != nil {
@@ -35,9 +35,13 @@ func (k KubeRouteGetter) RouteURL(ctx context.Context, id types.NamespacedName) 
 	if loaded.Spec.TLS != nil {
 		scheme = "https"
 	}
+	if path == "" {
+		path = "/"
+	}
 	routeURL := url.URL{
 		Scheme: scheme,
 		Host:   loaded.Spec.Host,
+		Path:   path,
 	}
 	return routeURL.String(), err
 }

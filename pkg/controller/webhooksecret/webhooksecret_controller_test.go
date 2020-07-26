@@ -3,12 +3,14 @@ package webhooksecret
 import (
 	"context"
 	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bigkevmcd/webhook-secret-operator/pkg/routes"
+	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +25,7 @@ import (
 	v1alpha1 "github.com/bigkevmcd/webhook-secret-operator/pkg/apis/apps/v1alpha1"
 	"github.com/bigkevmcd/webhook-secret-operator/pkg/git"
 	"github.com/bigkevmcd/webhook-secret-operator/pkg/secrets"
+	"github.com/bigkevmcd/webhook-secret-operator/test"
 )
 
 const (
@@ -30,7 +33,7 @@ const (
 	testWebhookSecretNamespace = "test-webhook-ns"
 	testSecretName             = "test-secret"
 	testWebhookID              = "1234567"
-	testHookEndpoint           = "https://example.com/test"
+	testHookEndpoint           = "https://example.com/"
 	testRepoURL                = "https://github.com/example/example.git"
 	testRepo                   = "example/example"
 	stubSecret                 = "known-secret"
@@ -91,7 +94,9 @@ func TestWebhookSecretControllerWithRouteRef(t *testing.T) {
 			Namespace: "route-test",
 		},
 	})
-	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
+	cl, r := makeReconciler(
+		t, ws, ws, makeTestSecret(testAuthSecretName),
+		test.MakeRoute(types.NamespacedName{Name: "my-test-route", Namespace: "route-test"}, test.Host("test.example.com")))
 	req := makeReconcileRequest()
 
 	res, err := r.Reconcile(req)
@@ -117,7 +122,7 @@ func TestWebhookSecretControllerWithRouteRef(t *testing.T) {
 	if ws.Status.WebhookID != testWebhookID {
 		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
 	}
-	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testHookEndpoint, stubSecret)
+	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated("https://test.example.com/", stubSecret)
 }
 
 // If using a Route, and there's a configured path on the RouteRef, then the
@@ -131,7 +136,8 @@ func TestWebhookSecretControllerWithRouteRefAndPath(t *testing.T) {
 			Path:      "/api/webhook",
 		},
 	})
-	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
+	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName),
+		test.MakeRoute(types.NamespacedName{Name: "my-test-route", Namespace: "route-test"}))
 	req := makeReconcileRequest()
 
 	res, err := r.Reconcile(req)
@@ -157,13 +163,41 @@ func TestWebhookSecretControllerWithRouteRefAndPath(t *testing.T) {
 	if ws.Status.WebhookID != testWebhookID {
 		t.Fatalf("status does not have the correct WebhookID, got %#v, want %#v", ws.Status.WebhookID, testWebhookID)
 	}
-	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testHookEndpoint+"/api/webhook", stubSecret)
+	r.gitClientFactory.(*stubClientFactory).client.assertHookCreated(testHookEndpoint+"api/webhook", stubSecret)
 }
 
 // If the Route referenced does not exist, no hook should be created.
 // The WebhookSecret should reflect the error.
 func TestWebhookSecretControllerWithRouteRefAndRouteMissing(t *testing.T) {
-	t.Skip()
+	logf.SetLogger(logf.ZapLogger(true))
+	ws := makeWebhookSecret(v1alpha1.HookRoute{
+		RouteRef: &v1alpha1.RouteReference{
+			Name:      "my-test-route",
+			Namespace: "route-test",
+			Path:      "/api/webhook",
+		},
+	})
+	cl, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
+	req := makeReconcileRequest()
+
+	_, err := r.Reconcile(req)
+	if err == nil {
+		t.Fatal(err)
+	}
+	s := &corev1.Secret{}
+	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	if err != nil {
+		t.Fatalf("get secret: %v", err)
+	}
+	ws = &v1alpha1.WebhookSecret{}
+	err = r.kubeClient.Get(context.Background(), req.NamespacedName, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ws.Status.SecretRef.Name != s.Name {
+		t.Fatalf("got incorrect secret in status, got %#v, want %#v", ws.Status.SecretRef.Name, s.Name)
+	}
+	r.gitClientFactory.(*stubClientFactory).client.assertNoHookCreated()
 }
 
 // When reconciling a WebhookSecret, if we have the secret already, but no
@@ -207,6 +241,28 @@ func TestWebhookSecretControllerDeletedWebhookSecret(t *testing.T) {
 		t.Fatalf("secret still exists %v", err)
 	}
 	r.gitClientFactory.(*stubClientFactory).client.assertHookDeleted(testWebhookID)
+}
+
+// When a WebhookSecret is deleted, if the webhook can't be deleted, this should
+// not block the webhook secret from being deleted, if the response is a 404.
+func TestWebhookSecretControllerFailingToDeleteTheWebhook(t *testing.T) {
+	logf.SetLogger(logf.ZapLogger(true))
+	ws := makeWebhookSecret(v1alpha1.HookRoute{
+		HookURL: testHookEndpoint,
+	})
+	ws.Status.WebhookID = testWebhookID
+	ws.ObjectMeta.Finalizers = []string{webhookFinalizer}
+	now := metav1.NewTime(time.Now())
+	ws.ObjectMeta.DeletionTimestamp = &now
+
+	_, r := makeReconciler(t, ws, ws, makeTestSecret(testAuthSecretName))
+	r.gitClientFactory.(*stubClientFactory).client.deleteErr = git.SCMError{Status: http.StatusNotFound}
+	req := makeReconcileRequest()
+
+	_, err := r.Reconcile(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func makeWebhookSecret(r v1alpha1.HookRoute) *v1alpha1.WebhookSecret {
@@ -266,11 +322,12 @@ func newStubHookClient(t *testing.T, repo, hookID string) *stubHookClient {
 var _ git.HooksClient = (*stubHookClient)(nil)
 
 type stubHookClient struct {
-	t       *testing.T
-	repo    string
-	hookID  string
-	created map[string]string
-	deleted map[string]string
+	t         *testing.T
+	repo      string
+	hookID    string
+	created   map[string]string
+	deleted   map[string]string
+	deleteErr error
 }
 
 // TODO: revisit use of s.repo
@@ -280,11 +337,15 @@ func (s *stubHookClient) Create(ctx context.Context, hookURL, secret string) (st
 }
 
 func (s *stubHookClient) Delete(ctx context.Context, hookID string) error {
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
 	s.deleted[s.repo] = hookID
 	return nil
 }
 
 func (s *stubHookClient) assertHookCreated(hookURL, wantSecret string) {
+	s.t.Helper()
 	secret := s.created[key(s.repo, hookURL)]
 	if secret != wantSecret {
 		s.t.Fatalf("hook creation failed: got %#v, want %#v", secret, wantSecret)
@@ -298,21 +359,11 @@ func (s *stubHookClient) assertHookDeleted(wantHookID string) {
 	}
 }
 
-var _ routes.RouteGetter = (*stubRouteGetter)(nil)
-
-func newStubRouteGetter(s string) *stubRouteGetter {
-	return &stubRouteGetter{
-		routeURL: s,
+func (s *stubHookClient) assertNoHookCreated() {
+	s.t.Helper()
+	if l := len(s.created); l != 0 {
+		s.t.Fatalf("%d hook were created", l)
 	}
-}
-
-type stubRouteGetter struct {
-	routeURL string
-}
-
-// TODO: this should check that the namespaced name matches something.
-func (s *stubRouteGetter) RouteURL(context.Context, types.NamespacedName) (string, error) {
-	return s.routeURL, nil
 }
 
 func key(s ...string) string {
@@ -336,8 +387,13 @@ func makeTestSecret(n string) *corev1.Secret {
 }
 
 func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Object) (client.Client, *ReconcileWebhookSecret) {
+	t.Helper()
 	s := scheme.Scheme
 	s.AddKnownTypes(v1alpha1.SchemeGroupVersion, ws)
+	if err := routev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+
 	cl := fake.NewFakeClient(objs...)
 	return cl, &ReconcileWebhookSecret{
 		kubeClient: cl,
@@ -347,7 +403,7 @@ func makeReconciler(t *testing.T, ws *v1alpha1.WebhookSecret, objs ...runtime.Ob
 				return stubSecret, nil
 			},
 		},
-		routeGetter:      newStubRouteGetter(testHookEndpoint),
+		routeGetter:      routes.New(cl),
 		gitClientFactory: &stubClientFactory{client: newStubHookClient(t, testRepo, testWebhookID), authToken: testAuthToken},
 		authSecretGetter: secrets.New(cl),
 	}

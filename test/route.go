@@ -6,9 +6,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// Host is an option function for MakeRoute to allow configuration fof the
+// route.
+func Host(h string) routeFunc {
+	return func(r *routev1.Route) {
+		r.Spec.Host = h
+	}
+}
+
+type routeFunc func(*routev1.Route)
+
 // MakeRoute is a test helper that creates routes.
-func MakeRoute(id types.NamespacedName) *routev1.Route {
-	return &routev1.Route{
+func MakeRoute(id types.NamespacedName, opts ...routeFunc) *routev1.Route {
+	r := &routev1.Route{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Route",
 			APIVersion: "route.openshift.io/v1",
@@ -18,8 +28,12 @@ func MakeRoute(id types.NamespacedName) *routev1.Route {
 			Namespace: id.Namespace,
 		},
 		Spec: routev1.RouteSpec{
-			Host: "test.example.com",
+			Host: "example.com",
 			TLS:  &routev1.TLSConfig{},
 		},
 	}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }

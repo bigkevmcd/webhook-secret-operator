@@ -20,12 +20,12 @@ type MockRoute struct {
 }
 
 // RouteURL implements the RouteGetter interface.
-func (k MockRoute) RouteURL(ctx context.Context, routeID types.NamespacedName) (string, error) {
+func (k MockRoute) RouteURL(ctx context.Context, routeID types.NamespacedName, p string) (string, error) {
 	route, ok := k.secrets[key(routeID)]
 	if !ok {
 		return "", fmt.Errorf("mock not found")
 	}
-	return route, nil
+	return route + "/", nil
 }
 
 // AddStubResponse is a mock method that sets up a Route to be returned.
