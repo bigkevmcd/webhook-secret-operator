@@ -265,6 +265,27 @@ func TestWebhookSecretControllerFailingToDeleteTheWebhook(t *testing.T) {
 	}
 }
 
+// When deleting the WebhookSecret, if the secret no longer exists, we won't be
+// able to delete the Webhook.
+func TestWebhookSecretControllerFailingToDeleteWithMissingSecret(t *testing.T) {
+	logf.SetLogger(logf.ZapLogger(true))
+	ws := makeWebhookSecret(v1alpha1.HookRoute{
+		HookURL: testHookEndpoint,
+	})
+	ws.Status.WebhookID = testWebhookID
+	ws.ObjectMeta.Finalizers = []string{webhookFinalizer}
+	now := metav1.NewTime(time.Now())
+	ws.ObjectMeta.DeletionTimestamp = &now
+
+	_, r := makeReconciler(t, ws, ws)
+	req := makeReconcileRequest()
+
+	_, err := r.Reconcile(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func makeWebhookSecret(r v1alpha1.HookRoute) *v1alpha1.WebhookSecret {
 	return &v1alpha1.WebhookSecret{
 		ObjectMeta: metav1.ObjectMeta{
