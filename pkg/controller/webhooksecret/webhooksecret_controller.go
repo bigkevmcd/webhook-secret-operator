@@ -108,7 +108,10 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 		}
 	} else {
 		if containsString(instance.ObjectMeta.Finalizers, webhookFinalizer) {
-			if err := r.deleteWebhook(ctx, instance); err != nil {
+			if err := r.deleteWebhook(ctx, reqLogger, instance); err != nil {
+				if errors.IsNotFound(err) {
+					return reconcile.Result{}, nil
+				}
 				return reconcile.Result{}, fmt.Errorf("failed to delete the webhook: %s", err)
 			}
 			instance.ObjectMeta.Finalizers = removeString(instance.ObjectMeta.Finalizers, webhookFinalizer)
@@ -142,6 +145,10 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 
 func (r *ReconcileWebhookSecret) authenticatedClient(ctx context.Context, ws *v1alpha1.WebhookSecret) (git.HooksClient, error) {
 	authToken, err := r.authSecretGetter.SecretToken(ctx, types.NamespacedName{Name: ws.Spec.AuthSecretRef.Name, Namespace: ws.ObjectMeta.Namespace})
+	if errors.IsNotFound(err) {
+		log.Error(err, "secret %s/%s was not found", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace)
+		return nil, err
+	}
 	if err != nil {
 		log.Error(err, "failed to get the authentication token")
 		return nil, fmt.Errorf("could not get authentication token from %s/%s: %s", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace, err)
@@ -153,10 +160,15 @@ func (r *ReconcileWebhookSecret) authenticatedClient(ctx context.Context, ws *v1
 	return client, nil
 }
 
-func (r *ReconcileWebhookSecret) deleteWebhook(ctx context.Context, ws *v1alpha1.WebhookSecret) error {
+func (r *ReconcileWebhookSecret) deleteWebhook(ctx context.Context, reqLogger logr.Logger, ws *v1alpha1.WebhookSecret) error {
 	client, err := r.authenticatedClient(ctx, ws)
-	if err != nil {
+	if errors.IsNotFound(err) {
+		reqLogger.Info("Unable to delete Webhook secret was not found")
 		return err
+	}
+
+	if err != nil {
+		return fmt.Errorf("could not get authentication token from %s/%s: %s", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace, err)
 	}
 	err = client.Delete(ctx, ws.Status.WebhookID)
 	if err != nil && !git.IsNotFound(err) {

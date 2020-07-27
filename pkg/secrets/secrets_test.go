@@ -31,7 +31,7 @@ func TestSecretTokenWithMissingSecret(t *testing.T) {
 	g := New(fake.NewFakeClient())
 
 	_, err := g.SecretToken(context.TODO(), testID)
-	if err.Error() != `error getting secret test-ns/test-secret: secrets "test-secret" not found` {
+	if err.Error() != `secrets "test-secret" not found` {
 		t.Fatal(err)
 	}
 }

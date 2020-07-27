@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -26,6 +27,9 @@ func New(c client.Client) *KubeSecretGetter {
 func (k KubeSecretGetter) SecretToken(ctx context.Context, id types.NamespacedName) (string, error) {
 	loaded := &corev1.Secret{}
 	err := k.kubeClient.Get(context.TODO(), id, loaded)
+	if errors.IsNotFound(err) {
+		return "", err
+	}
 	if err != nil {
 		return "", fmt.Errorf("error getting secret %s/%s: %w", id.Namespace, id.Name, err)
 	}
