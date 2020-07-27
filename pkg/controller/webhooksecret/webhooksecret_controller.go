@@ -109,14 +109,11 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 	} else {
 		if containsString(instance.ObjectMeta.Finalizers, webhookFinalizer) {
 			if err := r.deleteWebhook(ctx, reqLogger, instance); err != nil {
-				if errors.IsNotFound(err) {
-					return reconcile.Result{}, nil
-				}
-				return reconcile.Result{}, fmt.Errorf("failed to delete the webhook: %s", err)
+				reqLogger.Error(err, "failed to delete the webhook")
 			}
 			instance.ObjectMeta.Finalizers = removeString(instance.ObjectMeta.Finalizers, webhookFinalizer)
 			if err := r.kubeClient.Update(context.Background(), instance); err != nil {
-				return reconcile.Result{}, fmt.Errorf("failed to update the finalizers after deleting the webhook: %s", err)
+				reqLogger.Error(err, "failed to update the finalizers after deleting the webhook")
 			}
 		}
 		return reconcile.Result{}, nil
@@ -146,7 +143,7 @@ func (r *ReconcileWebhookSecret) Reconcile(request reconcile.Request) (reconcile
 func (r *ReconcileWebhookSecret) authenticatedClient(ctx context.Context, ws *v1alpha1.WebhookSecret) (git.HooksClient, error) {
 	authToken, err := r.authSecretGetter.SecretToken(ctx, types.NamespacedName{Name: ws.Spec.AuthSecretRef.Name, Namespace: ws.ObjectMeta.Namespace})
 	if errors.IsNotFound(err) {
-		log.Error(err, "secret %s/%s was not found", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace)
+		log.Error(err, fmt.Sprintf("secret %s/%s was not found", ws.Spec.AuthSecretRef.Name, ws.ObjectMeta.Namespace))
 		return nil, err
 	}
 	if err != nil {
@@ -178,7 +175,7 @@ func (r *ReconcileWebhookSecret) deleteWebhook(ctx context.Context, reqLogger lo
 }
 
 // TODO: improve the error messages.
-func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log logr.Logger, ws *v1alpha1.WebhookSecret, s *corev1.Secret) (reconcile.Result, error) {
+func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, logger logr.Logger, ws *v1alpha1.WebhookSecret, s *corev1.Secret) (reconcile.Result, error) {
 	// TODO: split this up into creating the secret, and updating the git host.
 	log.Info("Creating a new Secret", "Secret.Namespace", s.Namespace, "Secret.Name", s.Name)
 	err := r.kubeClient.Create(ctx, s)
@@ -196,7 +193,7 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log log
 
 	// TODO: work out how to get the secret string without having to grab it from the
 	// Data.
-	hookID, err := r.createWebhook(ctx, ws, string(s.Data["token"]))
+	hookID, err := r.createWebhook(ctx, logger, ws, string(s.Data["token"]))
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -209,7 +206,7 @@ func (r *ReconcileWebhookSecret) reconcileNewSecret(ctx context.Context, log log
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1.WebhookSecret, secret string) (string, error) {
+func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, logger logr.Logger, ws *v1alpha1.WebhookSecret, secret string) (string, error) {
 	hookURL, err := r.hookURL(ctx, ws.Spec.WebhookURL)
 	if err != nil {
 		log.Error(err, "Failed to get the URL for route")
@@ -224,6 +221,7 @@ func (r *ReconcileWebhookSecret) createWebhook(ctx context.Context, ws *v1alpha1
 	if err != nil {
 		return "", err
 	}
+	logger.Info("Hook created", "id", hookID, "hookURL", hookURL)
 	return hookID, nil
 }
 

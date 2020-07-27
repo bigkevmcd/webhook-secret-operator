@@ -263,6 +263,11 @@ func TestWebhookSecretControllerFailingToDeleteTheWebhook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	loaded := &v1alpha1.WebhookSecret{}
+	err = r.kubeClient.Get(context.Background(), req.NamespacedName, loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // When deleting the WebhookSecret, if the secret no longer exists, we won't be
