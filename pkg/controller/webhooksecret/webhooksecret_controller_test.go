@@ -59,7 +59,7 @@ func TestWebhookSecretControllerWithAHookURL(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: req.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestWebhookSecretControllerWithRouteRef(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: req.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestWebhookSecretControllerWithRouteRefAndPath(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: req.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestWebhookSecretControllerWithRouteRefAndRouteMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: req.Name, Namespace: req.Namespace}, s)
 	if err != nil {
 		t.Fatalf("get secret: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestWebhookSecretControllerDeletedWebhookSecret(t *testing.T) {
 		t.Fatal("request was requeued")
 	}
 	s := &corev1.Secret{}
-	err = cl.Get(context.Background(), types.NamespacedName{Name: ws.Spec.SecretRef.Name, Namespace: req.Namespace}, s)
+	err = cl.Get(context.Background(), types.NamespacedName{Name: req.Name, Namespace: req.Namespace}, s)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("secret still exists %v", err)
 	}
@@ -300,9 +300,6 @@ func makeWebhookSecret(r v1alpha1.HookRoute) *v1alpha1.WebhookSecret {
 		Spec: v1alpha1.WebhookSecretSpec{
 			Repo: v1alpha1.Repo{
 				URL: testRepoURL,
-			},
-			SecretRef: v1alpha1.WebhookSecretRef{
-				Name: testSecretName,
 			},
 			AuthSecretRef: v1alpha1.WebhookSecretRef{
 				Name: testAuthSecretName,

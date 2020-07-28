@@ -143,7 +143,6 @@ func (in *WebhookSecretSpec) DeepCopyInto(out *WebhookSecretSpec) {
 	*out = *in
 	out.Repo = in.Repo
 	out.AuthSecretRef = in.AuthSecretRef
-	out.SecretRef = in.SecretRef
 	in.WebhookURL.DeepCopyInto(&out.WebhookURL)
 	return
 }

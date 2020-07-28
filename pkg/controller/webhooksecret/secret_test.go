@@ -19,18 +19,12 @@ func TestCreateSecret(t *testing.T) {
 			Name:      "my-test-webhook-secret",
 			Namespace: "test-ns",
 		},
-		Spec: v1alpha1.WebhookSecretSpec{
-			SecretRef: v1alpha1.WebhookSecretRef{
-				Name: "test-secret",
-				Key:  "token",
-			},
-		},
 	}
 
 	want := &corev1.Secret{
 		TypeMeta: secretTypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-secret",
+			Name:      "my-test-webhook-secret",
 			Namespace: "test-ns",
 		},
 		Data: map[string][]byte{

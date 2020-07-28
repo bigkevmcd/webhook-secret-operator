@@ -24,17 +24,13 @@ func (s *secretFactory) CreateSecret(cr *v1alpha1.WebhookSecret) (*corev1.Secret
 		return nil, err
 	}
 	key := "token"
-	if cr.Spec.SecretRef.Key != "" {
-		key = cr.Spec.SecretRef.Key
-	}
-
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Spec.SecretRef.Name,
+			Name:      cr.ObjectMeta.Name,
 			Namespace: cr.ObjectMeta.Namespace,
 		},
 		Data: map[string][]byte{
@@ -43,7 +39,7 @@ func (s *secretFactory) CreateSecret(cr *v1alpha1.WebhookSecret) (*corev1.Secret
 	}, nil
 }
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$:#"
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$:#!^&"
 
 func generateSecureString() (string, error) {
 	b := make([]byte, 20)

@@ -11,8 +11,6 @@ import (
 //   repoURL: "https://github.com/testing/testing.git"
 //   authSecretRef:
 //     name: "gitops-github-auth-token"
-//   secretRef:
-//     name: "this-is-the-secret-to-be-created"
 //   webhookURL:
 //     route:
 //       name: "el-gitop-eventlistener-route"
@@ -26,7 +24,6 @@ import (
 type WebhookSecretSpec struct {
 	Repo          Repo             `json:"repo"`
 	AuthSecretRef WebhookSecretRef `json:"authSecretRef"`
-	SecretRef     WebhookSecretRef `json:"secretRef"`
 	WebhookURL    HookRoute        `json:"webhookURL"`
 }
 
