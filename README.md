@@ -1,4 +1,4 @@
-# webhook-secret-operator
+# webhook-secret-operator ![Go](https://github.com/bigkevmcd/webhook-secret-operator/workflows/Go/badge.svg)
 
 This is an operator that creates and manages secrets between GitHub/GitLab and your local cluster.
 
