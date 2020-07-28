@@ -14,6 +14,7 @@ type URLDriverIdentifier struct {
 func (u *URLDriverIdentifier) Identify(repoURL string) (string, error) {
 	parsed, err := url.Parse(repoURL)
 	if err != nil {
+		return "", fmt.Errorf("failed to parse the repoURL %q: %w", repoURL, err)
 	}
 	d, ok := u.hosts[parsed.Host]
 	if ok {

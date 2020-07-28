@@ -11,8 +11,6 @@ metadata:
   name: example-webhooksecret
 spec:
   repoURL: https://github.com/my-org/gitops.git
-  secretRef:
-    name: test-secret
   authSecretRef:
     name: demo-hooks-secret
   webhookURL:
@@ -50,8 +48,6 @@ metadata:
   name: example-webhooksecret
 spec:
   repoURL: https://github.com/my-org/gitops.git
-  secretRef:
-    name: test-secret
   authSecretRef:
     name: demo-hooks-secret
   webhookURL:
@@ -67,8 +63,6 @@ metadata:
   name: example-webhooksecret
 spec:
   repoURL: https://github.com/my-org/gitops.git
-  secretRef:
-    name: test-secret
   authSecretRef:
     name: demo-hooks-secret
   webhookURL:
@@ -78,3 +72,26 @@ spec:
 ```
 
 This will calculate the URL for the route and populate the hook URL with it.
+
+### Configuring the key name within the secret
+
+By default, the secret will be generated and placed into the `token` key within
+the generated secret.
+
+If you want to override this, add a `key` to the spec:
+
+```yaml
+apiVersion: apps.bigkevmcd.com/v1alpha1
+kind: WebhookSecret
+metadata:
+  name: example-webhooksecret
+spec:
+  repoURL: https://github.com/my-org/gitops.git
+  key: not-token
+  authSecretRef:
+    name: demo-hooks-secret
+  webhookURL:
+    routeRef:
+      name: name-of-route
+      namespace: route-ns
+```

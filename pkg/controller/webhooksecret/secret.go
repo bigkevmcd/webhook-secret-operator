@@ -24,6 +24,9 @@ func (s *secretFactory) CreateSecret(cr *v1alpha1.WebhookSecret) (*corev1.Secret
 		return nil, err
 	}
 	key := "token"
+	if cr.Spec.Key != "" {
+		key = cr.Spec.Key
+	}
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",

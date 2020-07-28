@@ -18,33 +18,33 @@ var _ RouteGetter = (*KubeRouteGetter)(nil)
 var testID = types.NamespacedName{Name: "test-route", Namespace: "test-ns"}
 
 func TestRouteURL(t *testing.T) {
-	g := makeGetter(test.MakeRoute(testID))
+	g := makeGetter(t, test.MakeRoute(testID))
 
 	hookURL, err := g.RouteURL(context.TODO(), testID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hookURL != "https://test.example.com/" {
-		t.Fatalf("got %s, want 'https://test.example.com/", hookURL)
+	if hookURL != "https://example.com/" {
+		t.Fatalf("got %s, want 'https://example.com/", hookURL)
 	}
 }
 
 func TestRouteURLWithPath(t *testing.T) {
-	g := makeGetter(test.MakeRoute(testID))
+	g := makeGetter(t, test.MakeRoute(testID))
 
 	hookURL, err := g.RouteURL(context.TODO(), testID, "/test/api")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hookURL != "https://test.example.com/test/api" {
-		t.Fatalf("got %s, want 'https://test.example.com/test/api", hookURL)
+	if hookURL != "https://example.com/test/api" {
+		t.Fatalf("got %s, want 'https://example.com/test/api", hookURL)
 	}
 }
 
 func TestRouteURLWithMissingRoute(t *testing.T) {
-	g := makeGetter()
+	g := makeGetter(t)
 
 	_, err := g.RouteURL(context.TODO(), testID, "")
 
@@ -53,8 +53,11 @@ func TestRouteURLWithMissingRoute(t *testing.T) {
 	}
 }
 
-func makeGetter(o ...runtime.Object) *KubeRouteGetter {
+func makeGetter(t *testing.T, o ...runtime.Object) *KubeRouteGetter {
+	t.Helper()
 	s := scheme.Scheme
-	routev1.AddToScheme(s)
+	if err := routev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
 	return New(fake.NewFakeClient(o...))
 }

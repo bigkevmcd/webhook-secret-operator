@@ -24,6 +24,7 @@ import (
 type WebhookSecretSpec struct {
 	Repo          Repo             `json:"repo"`
 	AuthSecretRef WebhookSecretRef `json:"authSecretRef"`
+	Key           string           `json:"key,omitempty"`
 	WebhookURL    HookRoute        `json:"webhookURL"`
 }
 

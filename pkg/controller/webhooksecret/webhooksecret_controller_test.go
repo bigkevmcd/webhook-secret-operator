@@ -31,7 +31,6 @@ import (
 const (
 	testWebhookSecretName      = "test-webhook-secret"
 	testWebhookSecretNamespace = "test-webhook-ns"
-	testSecretName             = "test-secret"
 	testWebhookID              = "1234567"
 	testHookEndpoint           = "https://example.com/"
 	testRepoURL                = "https://github.com/example/example.git"
