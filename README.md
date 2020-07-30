@@ -17,9 +17,9 @@ spec:
     hookURL: https://example.com/
 ```
 
-This Kubernetes object creates a secret called `test-secret`, then creates a webhook in the repo `https://github.com/my-org/gitops.git`, pointing at `https://example.com`.
+This Kubernetes object creates a Secret called `example-webhooksecret`, then creates a webhook in the repo `https://github.com/my-org/gitops.git`, pointing at `https://example.com`, and sharing the token from the `example-webhooksecret` Secret.
 
-To authenticate the request, the secret in `authSecretRef`, `demo-hooks-secret`.
+To authenticate the request, the secret in `authSecretRef`, `demo-hooks-secret` is used.
 
 ## Installation
 
