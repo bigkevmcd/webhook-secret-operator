@@ -81,7 +81,7 @@ rules:
 - apiGroups:
   - route.openshift.io
   resources:
-  - Route
+  - routes
   verbs:
   - get
   - watch
