@@ -26,7 +26,7 @@ To authenticate the request, the secret in `authSecretRef`, `demo-hooks-secret` 
 You'll need to install the operator first.
 
 ```shell
-$ kubectl apply -f https://github.com/bigkevmcd/webhook-secret-operator/releases/download/v0.4.0/release-v0.4.0.yaml
+$ kubectl apply -f https://github.com/bigkevmcd/webhook-secret-operator/releases/download/v0.4.1/release-v0.4.1.yaml
 ```
 
 ## Creating a Secret to authenticate with your Git provider
